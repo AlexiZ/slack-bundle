@@ -2,6 +2,9 @@
     "name": "alexiz/slack-bundle",
     "type": "library",
     "require": {
+        "php": ">=7.1",
+        "ext-curl": "*",
+        "ext-json": "*",
         "symfony/symfony": "^3.4"
     },
     "license": "MIT",
@@ -10,5 +13,10 @@
             "name": "AlexiZ",
             "email": "mazaudiera@gmail.com"
         }
-    ]
+    ],
+    "autoload": {
+        "psr-4": {
+            "Slack\\ApiBundle\\": "src/Slack/ApiBundle"
+        }
+    }
 }
