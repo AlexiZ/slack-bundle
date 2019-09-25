@@ -6,21 +6,6 @@ parameters:
     slack.client.channel: CHDJWUBRN
 ```
 
-```YAML
-# app/config/services.yml
-services:
-    Slack\ApiBundle\DependencyInjection\Manager:
-        public: false
-        arguments:
-            $apiToken: "%slack.client.token%"
-            $user: "%slack.client.user%"
-            $channel: "%slack.client.channel%"
-
-    slack.client:
-        public: true
-        alias: Slack\ApiBundle\DependencyInjection\Manager
-
-```
 
 # Symfony Slack bundle
 

@@ -2,7 +2,7 @@
     "name": "alexiz/slack-bundle",
     "type": "library",
     "require": {
-        "symfony/http-kernel": "^3.4 || ^4.0"
+        "symfony/symfony": "^3.4"
     },
     "license": "MIT",
     "authors": [
