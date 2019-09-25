@@ -1,0 +1,14 @@
+{
+    "name": "alexiz/slack-bundle",
+    "type": "library",
+    "require": {
+        "symfony/http-kernel": "^3.4 || ^4.0"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "AlexiZ",
+            "email": "mazaudiera@gmail.com"
+        }
+    ]
+}
