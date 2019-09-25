@@ -3,7 +3,7 @@ services:
         public: false
         arguments:
             $apiToken: "%slack.client.token%"
-            $user: "%slack.client.user%"
+            $userId: "%slack.client.user%"
             $channel: "%slack.client.channel%"
 
     slack.client:

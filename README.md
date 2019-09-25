@@ -85,3 +85,5 @@ class AcmeService
     }
 }
 ```
+
+_Note : si l'auto-wiring n'est pas activé, il est nécessaire de rajouter `$slackClient` à la liste des arguments du service._
