@@ -39,8 +39,8 @@ class Manager
             'token' => $this->apiToken,
             'channel' => $this->channel,
             'text' => $message,
-            'as_user' => false,
-            'username' => $this->getUserInfo($this->user),
+            'as_user' => true,
+            'username' => $this->getUserInfo($this->user)['real_name_normalized'],
         ];
 
         $response = $this->callPostApi($url, $params, self::CONTENT_TYPE_FORM);
@@ -97,7 +97,7 @@ class Manager
         return false;
     }
 
-    private function callPostApi(string $url, array $data, string $contentType = 'json'): string
+    private function callPostApi(string $url, array $data, string $contentType = 'json'): array
     {
         $ch = curl_init();
 
@@ -120,7 +120,7 @@ class Manager
         return json_decode($output, true);
     }
 
-    private function callGetApi(string $url, array $parameters = [], string $contentType = 'json'): string
+    private function callGetApi(string $url, array $parameters = [], string $contentType = 'x-www-form-urlencoded'): array
     {
         $ch = curl_init();
 
