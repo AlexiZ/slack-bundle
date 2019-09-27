@@ -83,7 +83,7 @@ Dans un contrôleur :
 
 ```PHP
 $slack = $this->get('slack.client');
-
+$message = 'Contenu du message';
 $slack->sendMessage($message);
 ```
 
