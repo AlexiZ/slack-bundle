@@ -18,10 +18,36 @@
  - sur la fenêtre qui s'ouvre, il est demandé de renseigner un channel ou une conversation qui ne servira qu'à informer les utilisateurs de l'instance Slack dudit channel ou conversation de l'installation d'une nouvelle application sur l'espace de travail.
  - Récupérer le token "OAuth Access Token" qui est affiché à l'écran 
 
+
 ### Installation et paramétrage du bundle
 
+#### SOIT depuis le dépôt public
 Installer le bundle avec composer :
 > $ composer require alexiz/slack-bundle "dev-master"
+
+
+#### SOIT depuis un dépôt privé
+ - Télécharger le bundle depuis Github
+ - Ajouter ce bundle dans un nouveau dépôt privé
+ - Déclarer ce nouveau dépôt dans le composer.json :
+ ```JSON
+// composer.json
+{
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "git@gihub.com/XXX/slack-bundle.git"
+        }
+    ],
+    "require": [
+        "XXX/slack-bundle": "dev-master",
+    ],
+}
+ ```
+  - puis lancer `composer install`
+
+
+#### Paramétrage
 
 Déclarer le bundle :
 ```PHP
