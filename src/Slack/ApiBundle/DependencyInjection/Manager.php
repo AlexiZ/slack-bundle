@@ -20,16 +20,9 @@ class Manager
      */
     private $channel;
 
-    public function __construct(string $apiToken, string $userId, string $channel)
+    public function sendMessage(array $slackParameters, string $message): bool
     {
-        $this->apiToken = $apiToken;
-        $this->user = $userId;
-        $this->channel = $channel;
-    }
-
-    public function sendMessage($message)
-    {
-        if (!$this->validatePrerequisites()) {
+        if (!$this->validatePrerequisites($slackParameters)) {
             return false;
         }
 
@@ -70,8 +63,14 @@ class Manager
         return [];
     }
 
-    private function validatePrerequisites(): bool
+    private function validatePrerequisites(array $slackParameters): bool
     {
+        if ($slackParameters['token'] && $slackParameters['channel'] && $slackParameters['user']) {
+            $this->apiToken = $slackParameters['token'];
+            $this->channel = $slackParameters['channel'];
+            $this->user = $slackParameters['user'];
+        }
+
         if (!$this->doesUserExist()) {
             return false;
         }

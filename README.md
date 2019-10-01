@@ -21,12 +21,12 @@
 
 ### Installation et paramétrage du bundle
 
-#### SOIT depuis le dépôt public
+#### SOIT installation depuis le dépôt public
 Installer le bundle avec composer :
 > $ composer require alexiz/slack-bundle "dev-master"
 
 
-#### SOIT depuis un dépôt privé
+#### SOIT installation depuis un dépôt privé
  - Télécharger le bundle depuis Github
  - Ajouter ce bundle dans un nouveau dépôt privé
  - Déclarer ce nouveau dépôt dans le composer.json :
@@ -67,47 +67,107 @@ class AppKernel extends Kernel
 }
 ```
 
-Ajouter les paramètres pour Slack :
-```YAML
-# app/config/parameters.yml
-parameters:
-    slack.client.token: xoxp-111111111111-222222222222-333333333333-82a2ce59da9b876fe914def02153e92c
-    slack.client.user: UHBEUTE82
-    slack.client.channel: CHDJWUBRN
-```
-
 
 ### Utilisation
 
-Dans un contrôleur :
+#### Dans un contrôleur
+
+Dans le cas où les paramètres Slack sont stockés en base de données, commencer par créer la méthode du Repository qui permet de récupérer ces éléments (code exemple à adapter à la structure de base de données) :
 
 ```PHP
-$slack = $this->get('slack.client');
-$message = 'Contenu du message';
-$slack->sendMessage($message);
+<?php // src/AppBundle/Repository/ParameterRepository.php
+
+namespace SiteBundle\Repository;
+
+use Doctrine\ORM\AbstractQuery;
+
+class ParameterRepository
+{
+    public function getSlackParameters() {
+        return $this
+            ->createQueryBuilder('p')
+            ->select('partial p.{id, key, value}')
+            ->where('p.key IN :slackParameters')
+            ->setParameter('slackParameters', [
+                'slack.token',
+                'slack.channel',
+                'slack.user',
+            ])
+            ->getQuery()
+            ->getResult(AbstractQuery::HYDRATE_ARRAY)
+        ;
+    }
+}
 ```
 
-Dans un service :
+Puis instancier le service dans le controlleur en se servant de ces informations :
 
 ```PHP
-<?php 
-// src/AcmeBundle/Service/AcmeService.php
+<?php // src/AppBundle/Controller/DefaultController.php
+
+// Déclarer une nouvelle instance du service
+$slack = $this->get('slack.client');
+
+// Récupérer les paramètres Slack
+$slackParameters = $this->getDoctrine()->getRepository(Parameter::class)->getSlackParameters();
+
+// Créer le message à envoyer
+$message = 'Contenu du message';
+
+// Appeler l'envoi de message du service
+$slack->sendMessage(
+    [
+        'token' => $slackParameters[0],
+        'channel' => $slackParameters[1],
+        'user' => $slackParameters[2],
+    ], 
+    $message
+);
+```
+
+
+#### Dans un service
+
+```PHP
+<?php  // src/AcmeBundle/Service/AcmeService.php
+
 namespace AcmeBundle\DependencyInjection;
 
 use Slack\ApiBundle\DependencyInjection\Manager;
+use Doctrine\Common\Persistence\ManagerRegistry;
 
 class AcmeService
 {
+    /**
+     * @var Manager
+     */
     protected $slackClient;
+    /**
+     * @var ManagerRegistry
+     */
+    private $registry;
 
-    public function __construct(Manager $slackClient) {
+    public function __construct(Manager $slackClient, ManagerRegistry $registry) {
         $this->slackClient = $slackClient;
+        $this->registry = $registry;
     }
-    
-    private function acme() {
+
+    private function test() {
+        // Récupérer les paramètres en base de données
+        $slackParameters = $this->registry->getRepository(Parameter::class)->getSlackParameters();
+
+        // Créer le message à envoyer
         $message = 'Contenu du message';
 
-        $this->slackClient->sendMessage($message);
+        // Envoyer le message via le service
+        $this->slackClient->sendMessage(
+            [
+                'token' => $slackParameters[0],
+                'channel' => $slackParameters[1],
+                'user' => $slackParameters[2],
+            ], 
+            $message
+        );
     }
 }
 ```
