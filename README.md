@@ -2,21 +2,39 @@
 
 ## Push de données
 
+### Principe de fonctionnement
+
+L'application qui va être créée ici a besoin de trois paramètres pour fonctionner :
+  - un token d'accès
+  - un channel dans lequel écrire
+  - un utilisateur au nom duquel écrire
+ 
+Pour récupérer ces données, l'application doit d'abord être autorisée à accéder à l'instance Slack cible. Pour ce faire, on utilisera un [Slack Button](https://api.slack.com/docs/slack-button), qui ne sera utile qu'une seule fois : pour récupérer un token d'accès ainsi qu'un channel de destination.
+
+Ces paramètres doivent être enregistrés en base de données pour pouvoir être utilisés ensuite par l'application de manière transparente et permanente (ou jusqu'à révocation de l'autorisation par un administrateur de l'instance Slack).
+
+On pourra ensuite simplement requêter la base pour ne pas proposer ce bouton si les paramètres sont déjà enregistrés.
+
 ### Paramétrage de Slack
 
  - Aller sur la [liste des applications](https://api.slack.com/apps)
- - CLiquer sur "Create new app"
- - Renseigner le nom (ex : "TrackAd"). Ce nom n'a aucun incidence pour la suite, il permet simplement de s'y retrouver dans la liste des applications disponibles
+ - Cliquer sur "Create new app"
+ - Renseigner le nom (ex : "MonApplicationSlack") - ce nom sera affiché à toute personne qui installe l'application
  - Sélectionner le bon espace de travail dans la liste déroulante
  - Cliquer sur "Permissions" sous "Add features and functionality"
- - Ajouter les 3 permissions suivantes :
+ - Dans l'encadré "OAuth Tokens & Redirect URLs", cliquer sur "Add new redirect url". Il faut inscrire ici une url par client de la forme "https://www.XXX.com/slack-api-bundle/oauth" (la seconde partie de l'url est gérée par ce bundle et permet de traiter l'authentification OAuth 2 requise par Slack). Il est nécessaire de renseigner ici TOUTES les urls des sites sur lesquels seront mis en place les boutons Slack qui permettent d'associer l'application.
+ - Sauvegarder l'étape
+ - Dans l'encadré "Scopes", ajouter les 3 permissions suivantes :
     - "Send messages as user" (_chat:write:user_)
     - "Post to specific channel in Slack" (_incoming-webhook_)
     - "Access your workspace's profile information" (_users:read_)
- - Cliquer sur "Save changes"
- - En haut de cette page, cliquer sur "Install App to Workspace"
- - sur la fenêtre qui s'ouvre, il est demandé de renseigner un channel ou une conversation qui ne servira qu'à informer les utilisateurs de l'instance Slack dudit channel ou conversation de l'installation d'une nouvelle application sur l'espace de travail.
- - Récupérer le token "OAuth Access Token" qui est affiché à l'écran 
+ - Sauvegarder l'étape
+ - À gauche cliquer sur "Manage Distribution"
+ - Dans l'encadré "Share your app with other teams", cliquer sur "Activate public distribution" (valider les sous-étapes si nécessaire)
+
+Il ne reste plus qu'à cliquer à gauche sur "Basic Information" pour récupérer le "Client Id" et le "Client Secret". Ils sont nécessaires à la configuration du Bundle. 
+ 
+ L'application créée est désormais installable par tous ceux qui cliqueront sur le bouton qu'on insérera plus tard dans une page.
 
 
 ### Installation et paramétrage du bundle
@@ -36,7 +54,7 @@ Installer le bundle avec composer :
     "repositories": [
         {
             "type": "vcs",
-            "url": "git@gihub.com/XXX/slack-bundle.git"
+            "url": "https://github.com/XXX/slack-bundle.git"
         }
     ],
     "require": [
@@ -67,71 +85,87 @@ class AppKernel extends Kernel
 }
 ```
 
+Ajouter les paramètres identifiant l'application créée plus haut :
+
+```YAML
+# app/config/parameters.yml
+# app/config/parameters.yml.dist
+parameters:
+    slack.api.client_id: 123456789.123456789
+    slack.api.client_secret: ldskf1298flskdjf74897
+```
+
 
 ### Utilisation
 
-#### Dans un contrôleur
+Comme expliqué plus haut, l'implémentation se fait en deux temps :
+  - insérer un bouton sur une page pour ajouter l'application à l'instance Slack cible
+  - envoyer les messages voulus sur ledit Slack
 
-Dans le cas où les paramètres Slack sont stockés en base de données, commencer par créer la méthode du Repository qui permet de récupérer ces éléments (code exemple à adapter à la structure de base de données) :
+#### Bouton d'ajout Slack
 
-```PHP
-<?php // src/AppBundle/Repository/ParameterRepository.php
-
-namespace SiteBundle\Repository;
-
-use Doctrine\ORM\AbstractQuery;
-
-class ParameterRepository
-{
-    public function getSlackParameters() {
-        return $this
-            ->createQueryBuilder('p')
-            ->select('partial p.{id, key, value}')
-            ->where('p.key IN :slackParameters')
-            ->setParameter('slackParameters', [
-                'slack.token',
-                'slack.channel',
-                'slack.user',
-            ])
-            ->getQuery()
-            ->getResult(AbstractQuery::HYDRATE_ARRAY)
-        ;
-    }
-}
-```
-
-Puis instancier le service dans le controlleur en se servant de ces informations :
+On commence par ajouter le bouton sur une page :
 
 ```PHP
 <?php // src/AppBundle/Controller/DefaultController.php
 
-// Déclarer une nouvelle instance du service
-$slack = $this->get('slack.client');
+    /**
+     * Contrôleur de la page sur laquelle sera affiché le bouton d'ajout à Slack
+     */
+    public function indexAction() {
+        // Les paramètres nécessaires sont-ils déjà enregistrés ?
+        // Exemple de méthode qui renvoie un booléen pour savoir si les valeurs des 3 paramètres sont nulles ou non
+        $hasSlackParameters = $this->getDoctrine()->getRepository(Parameter::class)->hasSlackParameters();
 
-// Récupérer les paramètres Slack
-$slackParameters = $this->getDoctrine()->getRepository(Parameter::class)->getSlackParameters();
-
-// Créer le message à envoyer
-$message = 'Contenu du message';
-
-// Appeler l'envoi de message du service
-$slack->sendMessage(
-    [
-        'token' => $slackParameters[0],
-        'channel' => $slackParameters[1],
-        'user' => $slackParameters[2],
-    ], 
-    $message
-);
+        // Envoyer à la vue l'information pour savoir s'il faut afficher ou non le bouton d'ajout à Slack
+        return $this->render('AppBundle:Default:index.html.twig', [
+            'displayButton' => $hasSlackParameters,
+        ]);
+    }
 ```
 
 
-#### Dans un service
+#### Envoyer un message depuis un contrôleur
 
 ```PHP
-<?php  // src/AcmeBundle/Service/AcmeService.php
+<?php // src/AppBundle/Controller/DefaultController.php
 
-namespace AcmeBundle\DependencyInjection;
+    /**
+     * Contrôleur qui envoie un message sur Slack
+     */
+    public function sendMessageAction() {
+        // Vérifier à chaque envoi que les paramètres sont bien enregistrés 
+        $hasSlackParameters = $this->getDoctrine()->getRepository(Parameter::class)->hasSlackParameters();
+
+        if (!$hasSlackParameters) {
+            // throw Exception
+        }
+        
+        // Appeler l'envoi de message du service avec les paramètres récupérés
+        $messageSent = $this->get('slack.client')->sendMessage(
+            [
+                'token' => $slackParameters['token'],
+                'channel' => $slackParameters['channel'],
+                'user' => $slackParameters['user'],
+            ], 
+            'Contenu du message'
+        );
+
+        if (!$messageSent) {
+            // throw Exception
+        }
+
+        // tout s'est bien passé
+    }
+```
+
+
+#### Envoyer un message depuis un service
+
+```PHP
+<?php  // src/AppBundle/Service/AcmeService.php
+
+namespace AppBundle\DependencyInjection;
 
 use Slack\ApiBundle\DependencyInjection\Manager;
 use Doctrine\Common\Persistence\ManagerRegistry;
@@ -152,21 +186,23 @@ class AcmeService
         $this->registry = $registry;
     }
 
-    private function test() {
+    public function test() {
         // Récupérer les paramètres en base de données
         $slackParameters = $this->registry->getRepository(Parameter::class)->getSlackParameters();
 
-        // Créer le message à envoyer
-        $message = 'Contenu du message';
+        // S'assurer que les paramètres sont bien enregistrés
+        if (!$slackParameters) {
+            return false;
+        }
 
         // Envoyer le message via le service
-        $this->slackClient->sendMessage(
+        return $this->slackClient->sendMessage(
             [
-                'token' => $slackParameters[0],
-                'channel' => $slackParameters[1],
-                'user' => $slackParameters[2],
+                'token' => $slackParameters['token'],
+                'channel' => $slackParameters['channel'],
+                'user' => $slackParameters['user'],
             ], 
-            $message
+            'Contenu du message'
         );
     }
 }
