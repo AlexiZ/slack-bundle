@@ -9,11 +9,13 @@ L'application qui va être créée ici a besoin de trois paramètres pour foncti
   - un channel dans lequel écrire
   - un utilisateur au nom duquel écrire
  
-Pour récupérer ces données, l'application doit d'abord être autorisée à accéder à l'instance Slack cible. Pour ce faire, on utilisera un [Slack Button](https://api.slack.com/docs/slack-button), qui ne sera utile qu'une seule fois : pour récupérer un token d'accès ainsi qu'un channel de destination.
+Pour récupérer deux de ces données, l'application doit d'abord être autorisée à accéder à l'instance Slack cible. Pour ce faire, on utilisera un [Slack Button](https://api.slack.com/docs/slack-button), qui ne sera utile qu'une seule fois : pour récupérer un token d'accès ainsi qu'un channel de destination.
 
 Ces paramètres doivent être enregistrés en base de données pour pouvoir être utilisés ensuite par l'application de manière transparente et permanente (ou jusqu'à révocation de l'autorisation par un administrateur de l'instance Slack).
 
 On pourra ensuite simplement requêter la base pour ne pas proposer ce bouton si les paramètres sont déjà enregistrés.
+
+Le troisième paramètre, l'utilisateur émetteur, devra être géré séparément, par exemple dans un champ de formulaire dédié. Dans l'idéal il devra être enregistré en base au même titre que les deux autres paramètres pour en faciliter la récupération à chaque appel.
 
 ### Paramétrage de Slack
 
