@@ -93,7 +93,7 @@ Ajouter les paramètres identifiant l'application créée plus haut :
 # app/config/parameters.yml
 # app/config/parameters.yml.dist
 parameters:
-    slack.api.client_id: 123456789.123456789
+    slack.api.client_id: '123456789.123456789'
     slack.api.client_secret: ldskf1298flskdjf74897
 ```
 
@@ -117,15 +117,37 @@ On commence par ajouter le bouton sur une page :
     public function indexAction() {
         // Les paramètres nécessaires sont-ils déjà enregistrés ?
         // Exemple de méthode qui renvoie un booléen pour savoir si les valeurs des 3 paramètres sont nulles ou non
-        $hasSlackParameters = $this->getDoctrine()->getRepository(Parameter::class)->hasSlackParameters();
+        // La classe SimpleParameter utilisée ici est un exemple (voir docs/Entity/SimpleParameter.php pour l'implémentation)
+        // Le repository associé et sa méthode d'exmple de récupération de donnée est également donné en exemple dans docs/Repository
+        $slackParameters = $this->getDoctrine()->getRepository(SimpleParameter::class)->findLatest();
 
         // Envoyer à la vue l'information pour savoir s'il faut afficher ou non le bouton d'ajout à Slack
         return $this->render('AppBundle:Default:index.html.twig', [
-            'displayButton' => $hasSlackParameters,
+            'displayButton' => $slackParameters ? true : false,
         ]);
     }
 ```
 
+Dans la vue associée à ce contrôleur, il faut contrôler l'état de cette nouvelle variable :
+
+```Twig
+{# src/appBundle/Resources/views/Defaut/index.html.twig #}
+
+{% if not displayButton|default %}
+    <a href="https://slack.com/oauth/authorize?client_id={{ slack_api_client_id }}&scope=chat:write:user,incoming-webhook,users:read&redirect_uri={{ app.request.getSchemeAndHttpHost() }}/slack-api-bundle/oauth&state=oauthslackstate">
+        <img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcset="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x">
+    </a>
+{% endif %}
+```
+
+On utilise ici un paramètre twig global `slack_api_client_id` qui reprend l'un des paramètres ajoutés plus tôt et qu'il est nécessaire de définir dans le config.yml :
+
+```YAML
+# app/config/config.yml
+twig:
+    globals:
+        slack_api_client_id: '%slack.api.client_id%'
+```
 
 #### Envoyer un message depuis un contrôleur
 
@@ -136,28 +158,24 @@ On commence par ajouter le bouton sur une page :
      * Contrôleur qui envoie un message sur Slack
      */
     public function sendMessageAction() {
-        // Vérifier à chaque envoi que les paramètres sont bien enregistrés 
-        $hasSlackParameters = $this->getDoctrine()->getRepository(Parameter::class)->hasSlackParameters();
+        // Vérifier à chaque envoi que les paramètres sont bien enregistrés
+        // La classe SimpleParameter utilisée ici est un exemple (voir docs/Entity/SimpleParameter.php pour l'implémentation)
+        // Le repository associé et sa méthode d'exmple de récupération de donnée est également donné en exemple dans docs/Repository
+        $slackParameters = $this->getDoctrine()->getRepository(SimpleParameter::class)->findLatest();
 
-        if (!$hasSlackParameters) {
-            // throw Exception
+        // S'assurer que les paramètres sont bien enregistrés
+        if (!$slackParameters) {
+            throw new \Exception();
         }
-        
+
         // Appeler l'envoi de message du service avec les paramètres récupérés
-        $messageSent = $this->get('slack.client')->sendMessage(
-            [
-                'token' => $slackParameters['token'],
-                'channel' => $slackParameters['channel'],
-                'user' => $slackParameters['user'],
-            ], 
-            'Contenu du message'
-        );
+        $messageSent = $this->get('slack.client')->sendMessage('Hello world', $slackParameters);
 
         if (!$messageSent) {
-            // throw Exception
+            throw new \Exception();
         }
 
-        // tout s'est bien passé
+        return new Response('ok');
     }
 ```
 
@@ -190,7 +208,7 @@ class AcmeService
 
     public function test() {
         // Récupérer les paramètres en base de données
-        $slackParameters = $this->registry->getRepository(Parameter::class)->getSlackParameters();
+        $slackParameters = $this->registry->getRepository(SimpleParameter::class)->findLatest();
 
         // S'assurer que les paramètres sont bien enregistrés
         if (!$slackParameters) {
@@ -198,16 +216,29 @@ class AcmeService
         }
 
         // Envoyer le message via le service
-        return $this->slackClient->sendMessage(
-            [
-                'token' => $slackParameters['token'],
-                'channel' => $slackParameters['channel'],
-                'user' => $slackParameters['user'],
-            ], 
-            'Contenu du message'
-        );
+        return $this->slackClient->sendMessage('Hello world', $slackParameters);
     }
 }
 ```
 
 _Note : si l'auto-wiring n'est pas activé, il est nécessaire de rajouter `$slackClient` à la liste des arguments du service._
+
+
+### Informations complémentaires
+
+Durant la vie de l'application, il sera nécessaire de tenir à jour la liste des _redirect urls_ :
+  - ajouter l'url d'un nouveau client
+  - supprimer l'url des clients qui n'utlisent plus l'application
+
+Il suffira alors simplement de se rendre sur [la page de listing des application Slack](https://api.slack.com/apps) (l'instance Slack où a été créée l'application), puis d'accéder à la page "Oauth & Permissions" du menu gauche pour éditer les urls autorisés à utiliser l'application dans la section "Redirect Urls".
+
+La structure de donnée pour l'entité `SimpleParameter` donné en exemple plus haut est de la forme :
+
+    > select * from simple_parameter;
+    +----+---------+---------------------------------+
+    | id | name    | value                           |
+    +----+---------+---------------------------------+
+    |  1 | token   | xoxp-...                        |
+    |  2 | channel | DNL...                          |
+    |  3 | user    | UHBE...                         |
+    +----+---------+---------------------------------+

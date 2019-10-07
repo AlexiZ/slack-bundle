@@ -2,38 +2,84 @@
 
 namespace Slack\ApiBundle\DependencyInjection;
 
+use Symfony\Component\HttpFoundation\Request;
+
 class Manager
 {
     const CONTENT_TYPE_FORM = 'x-www-form-urlencoded';
     const SLACK_API_URL = 'https://slack.com/api/';
+    const STATE_KEY = 'oauthslackstate';
+    const PARAMETER_NAME_TOKEN = 'token';
+    const PARAMETER_NAME_CHANNEL = 'channel';
+    const PARAMETER_NAME_USER = 'user';
+
+    public static $nameValues = [
+        self::PARAMETER_NAME_TOKEN,
+        self::PARAMETER_NAME_CHANNEL,
+        self::PARAMETER_NAME_USER,
+    ];
 
     /**
      * @var string
      */
-    private $apiToken;
-    /**
-     * @var string
-     */
-    private $user;
-    /**
-     * @var string
-     */
-    private $channel;
+    private $clientId;
 
-    public function sendMessage(array $slackParameters, string $message): bool
+    /**
+     * @var string
+     */
+    private $clientSecret;
+
+    public function __construct(string $clientId,  string $clientSecret)
     {
-        if (!$this->validatePrerequisites($slackParameters)) {
+        $this->clientId = $clientId;
+        $this->clientSecret = $clientSecret;
+    }
+
+    public function authorize(Request $request)
+    {
+        if (Manager::STATE_KEY !== $request->query->get('state') || !$request->query->has('code')) {
+            return [];
+        }
+
+        return $this->getCredentials($request->query->get('code'));
+    }
+
+    private function getCredentials(string $code): array
+    {
+        $url = self::SLACK_API_URL . 'oauth.access';
+        $params = [
+            'client_id' => $this->clientId,
+            'client_secret' => $this->clientSecret,
+            'code' => $code,
+            'single_channel' => true,
+        ];
+
+        $response = $this->callPostApi($url, $params, self::CONTENT_TYPE_FORM);
+
+        if (is_array($response) && 'true' == $response['ok']) {
+            return [
+                self::PARAMETER_NAME_TOKEN => $response['access_token'],
+                self::PARAMETER_NAME_CHANNEL => $response['incoming_webhook']['channel_id'],
+            ];
+        }
+
+        return [];
+    }
+
+    public function sendMessage(string $message, array $parameters)
+    {
+        if (!$this->doesUserExist($parameters[self::PARAMETER_NAME_USER], $parameters[self::PARAMETER_NAME_TOKEN])) {
             return false;
         }
 
         $url = self::SLACK_API_URL . 'chat.postMessage';
 
         $params = [
-            'token' => $this->apiToken,
-            'channel' => $this->channel,
+            self::PARAMETER_NAME_TOKEN => $parameters[self::PARAMETER_NAME_TOKEN],
+            self::PARAMETER_NAME_CHANNEL => $parameters[self::PARAMETER_NAME_CHANNEL],
             'text' => $message,
             'as_user' => true,
-            'username' => $this->getUserInfo($this->user)['real_name_normalized'],
+            'username' => $this->getUserInfo($parameters[self::PARAMETER_NAME_USER], $parameters[self::PARAMETER_NAME_TOKEN])['real_name_normalized'],
         ];
 
         $response = $this->callPostApi($url, $params, self::CONTENT_TYPE_FORM);
@@ -45,12 +91,12 @@ class Manager
         return false;
     }
 
-    private function getUserInfo(string $userId): array
+    private function getUserInfo(string $userId, string $token): array
     {
         $url = self::SLACK_API_URL . 'users.info';
 
         $params = [
-            'token' => $this->apiToken,
+            'token' => $token,
             'user' => $userId,
         ];
 
@@ -63,28 +109,13 @@ class Manager
         return [];
     }
 
-    private function validatePrerequisites(array $slackParameters): bool
-    {
-        if ($slackParameters['token'] && $slackParameters['channel'] && $slackParameters['user']) {
-            $this->apiToken = $slackParameters['token'];
-            $this->channel = $slackParameters['channel'];
-            $this->user = $slackParameters['user'];
-        }
-
-        if (!$this->doesUserExist()) {
-            return false;
-        }
-
-        return true;
-    }
-
-    private function doesUserExist(): bool
+    private function doesUserExist(string $userId, string $token): bool
     {
         $url = self::SLACK_API_URL . 'users.info';
 
         $params = [
-            'token' => $this->apiToken,
-            'user' => $this->user,
+            'token' => $token,
+            'user' => $userId,
         ];
 
         $response = $this->callGetApi($url, $params, self::CONTENT_TYPE_FORM);
@@ -96,7 +127,7 @@ class Manager
         return false;
     }
 
-    private function callPostApi(string $url, array $data, string $contentType = 'json'): array
+    public function callPostApi(string $url, array $data, string $contentType = 'json'): array
     {
         $ch = curl_init();
 

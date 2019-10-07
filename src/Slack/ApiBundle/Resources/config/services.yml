@@ -1,6 +1,9 @@
 services:
     Slack\ApiBundle\DependencyInjection\Manager:
         public: false
+        arguments:
+            $clientId: '%slack.api.client_id%'
+            $clientSecret: '%slack.api.client_secret%'
 
     slack.client:
         public: true
