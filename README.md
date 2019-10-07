@@ -149,6 +149,36 @@ twig:
         slack_api_client_id: '%slack.api.client_id%'
 ```
 
+Maintenant que le bouton est en place et conditionné, il faut créer la route qui servira à authentifier l'instance auprès de Slack.
+
+On déclare donc la route :
+
+```YAML
+#app/config/routing.yml
+slack_api_oauth:
+    path: /slack-api-bundle/oauth
+    defaults: { _controller: AppBundle:Default:slackOauth }
+```
+
+Et le contrôleur associé, qui utilisera les composantes du bundle pour dialoguer avec Slack :
+
+```PHP
+<?php // src/AppBundle/Controller/DefaultController.php
+
+    public function slackOauthAction(Request $request)
+    {
+        // Utiliser la réponse de Slack récupérer le token d'accès à l'instance
+        $credentials = $this->get('slack.client')->authorize($request);
+
+        // Enregistrer en base le token et le channel choisi
+        // Le repository utilisé ici est fourni en exemple dans docs/Repository
+        $this->getDoctrine()->getRepository(SimpleParameter::class)->saveParameters($credentials);
+
+        return $this->redirect('/');
+    }
+```
+
+
 #### Envoyer un message depuis un contrôleur
 
 ```PHP
